@@ -1,0 +1,203 @@
+{
+  "version": 1,
+  "scope": "Example-only user-assigned color code, not Braille",
+  "source_image": "samples/lego_color.jpg",
+  "assignment_order": "top row left-to-right, then bottom row left-to-right",
+  "words": [
+    "JUDY",
+    "FOX",
+    "RAIN"
+  ],
+  "feature": "median CIELAB on the middle-brightness subset of an inset face crop",
+  "distance": "Euclidean CIELAB (Delta E 76)",
+  "minimum_margin_delta_e76": 2.0,
+  "entries": [
+    {
+      "letter": "J",
+      "color_name": "tan",
+      "lab": [
+        65.521240234375,
+        -4.96875,
+        16.140625
+      ],
+      "swatch_rgb": [
+        162,
+        161,
+        130
+      ],
+      "source_index": 0,
+      "nearest_other_distance_delta_e76": 27.266618911640915,
+      "acceptance_radius_delta_e76": 12.269978510238412
+    },
+    {
+      "letter": "U",
+      "color_name": "light gray",
+      "lab": [
+        76.953125,
+        -3.640625,
+        -8.578125
+      ],
+      "swatch_rgb": [
+        174,
+        193,
+        206
+      ],
+      "source_index": 1,
+      "nearest_other_distance_delta_e76": 27.266618911640915,
+      "acceptance_radius_delta_e76": 12.269978510238412
+    },
+    {
+      "letter": "D",
+      "color_name": "blue",
+      "lab": [
+        28.45458984375,
+        16.453125,
+        -49.015625
+      ],
+      "swatch_rgb": [
+        3,
+        63,
+        144
+      ],
+      "source_index": 2,
+      "nearest_other_distance_delta_e76": 48.578313708897404,
+      "acceptance_radius_delta_e76": 15.0
+    },
+    {
+      "letter": "Y",
+      "color_name": "brown",
+      "lab": [
+        14.605712890625,
+        11.609375,
+        7.640625
+      ],
+      "swatch_rgb": [
+        55,
+        30,
+        27
+      ],
+      "source_index": 3,
+      "nearest_other_distance_delta_e76": 20.629368082882035,
+      "acceptance_radius_delta_e76": 9.283215637296916
+    },
+    {
+      "letter": "F",
+      "color_name": "red",
+      "lab": [
+        32.470703125,
+        49.25,
+        32.703125
+      ],
+      "swatch_rgb": [
+        150,
+        27,
+        28
+      ],
+      "source_index": 4,
+      "nearest_other_distance_delta_e76": 26.85500271257562,
+      "acceptance_radius_delta_e76": 12.08475122065903
+    },
+    {
+      "letter": "O",
+      "color_name": "teal",
+      "lab": [
+        21.0205078125,
+        -18.46875,
+        -1.328125
+      ],
+      "swatch_rgb": [
+        2,
+        58,
+        52
+      ],
+      "source_index": 5,
+      "nearest_other_distance_delta_e76": 22.340829907853077,
+      "acceptance_radius_delta_e76": 10.053373458533885
+    },
+    {
+      "letter": "X",
+      "color_name": "yellow",
+      "lab": [
+        61.56005859375,
+        1.4375,
+        59.8125
+      ],
+      "swatch_rgb": [
+        178,
+        145,
+        30
+      ],
+      "source_index": 6,
+      "nearest_other_distance_delta_e76": 35.966876792352835,
+      "acceptance_radius_delta_e76": 15.0
+    },
+    {
+      "letter": "R",
+      "color_name": "lime",
+      "lab": [
+        48.96240234375,
+        -27.65625,
+        42.828125
+      ],
+      "swatch_rgb": [
+        91,
+        127,
+        37
+      ],
+      "source_index": 7,
+      "nearest_other_distance_delta_e76": 35.966876792352835,
+      "acceptance_radius_delta_e76": 15.0
+    },
+    {
+      "letter": "A",
+      "color_name": "dark teal",
+      "lab": [
+        5.267333984375,
+        -3.0625,
+        -5.015625
+      ],
+      "swatch_rgb": [
+        5,
+        19,
+        25
+      ],
+      "source_index": 8,
+      "nearest_other_distance_delta_e76": 6.642216293184611,
+      "acceptance_radius_delta_e76": 2.988997331933075
+    },
+    {
+      "letter": "I",
+      "color_name": "near-black",
+      "lab": [
+        5.4962158203125,
+        2.578125,
+        -8.515625
+      ],
+      "swatch_rgb": [
+        16,
+        17,
+        30
+      ],
+      "source_index": 9,
+      "nearest_other_distance_delta_e76": 6.642216293184611,
+      "acceptance_radius_delta_e76": 2.988997331933075
+    },
+    {
+      "letter": "N",
+      "color_name": "orange",
+      "lab": [
+        51.8798828125,
+        40.296875,
+        48.9609375
+      ],
+      "swatch_rgb": [
+        200,
+        92,
+        39
+      ],
+      "source_index": 10,
+      "nearest_other_distance_delta_e76": 26.85500271257562,
+      "acceptance_radius_delta_e76": 12.08475122065903
+    }
+  ]
+}
