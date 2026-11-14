@@ -17,7 +17,14 @@ from recording_pipeline import WordRecorder
 ROOT = Path(__file__).resolve().parent
 
 
-def replay(dataset, out, *, reader_factory=None, recognition_method="six_dot"):
+def replay(
+    dataset,
+    out,
+    *,
+    reader_factory=None,
+    recognition_method="six_dot",
+    alignment_mode="aruco",
+):
     cv2.setNumThreads(4)
     cv2.setRNGSeed(2026)
     out.mkdir(parents=True, exist_ok=True)
@@ -28,7 +35,13 @@ def replay(dataset, out, *, reader_factory=None, recognition_method="six_dot"):
     )
     reference = cv2.imread(str(dataset / "reference.png"))
     layout = json.loads((dataset / "layout.json").read_text())
-    recorder = WordRecorder(reference, layout, storage, reader_factory=reader_factory)
+    recorder = WordRecorder(
+        reference,
+        layout,
+        storage,
+        reader_factory=reader_factory,
+        alignment_mode=alignment_mode,
+    )
     events = [
         json.loads(line) for line in (dataset / "events.jsonl").read_text().splitlines()
     ]
@@ -123,7 +136,7 @@ def replay(dataset, out, *, reader_factory=None, recognition_method="six_dot"):
     errors = []
     for annotation in truth["frames"]:
         result = trace[annotation["event_index"]]["result"]
-        if result.get("alignment", {}).get("status") != "tracked":
+        if result.get("alignment", {}).get("status") not in {"tracked", "disabled"}:
             continue
         transform = np.float64(annotation["reference_to_frame"])
         for observation in result["observations"]:
@@ -133,7 +146,13 @@ def replay(dataset, out, *, reader_factory=None, recognition_method="six_dot"):
     before = snapshots["words_before_rewrite"]
     after_undo = snapshots["words_after_write_again"]
     saved = snapshots["words_before_reset"]
-    reloaded = WordRecorder(reference, layout, storage, reader_factory=reader_factory)
+    reloaded = WordRecorder(
+        reference,
+        layout,
+        storage,
+        reader_factory=reader_factory,
+        alignment_mode=alignment_mode,
+    )
     ignored = [
         t
         for t in trace
@@ -195,6 +214,7 @@ def replay(dataset, out, *, reader_factory=None, recognition_method="six_dot"):
     report = {
         "protocol": "END frame -> save; WRITE_AGAIN -> remove latest only; next END frame -> replacement; RESET -> clear",
         "recognition_method": recognition_method,
+        "alignment_mode": alignment_mode,
         "simulation": truth["simulation"],
         "images": len(truth["frames"]),
         "events": len(events),
@@ -210,14 +230,18 @@ def replay(dataset, out, *, reader_factory=None, recognition_method="six_dot"):
         "analyzed_frames": recorder.analysis_count,
         "analysis_latency_ms": stats([r["analysis_latency_ms"] for r in analyzed]),
         "end_including_storage_latency_ms": stats([r["latency_ms"] for r in analyzed]),
-        "camera_corner_error_px": stats(errors),
+        "camera_corner_error_px": stats(errors) if errors else None,
         "payloads": payloads,
-        "timing_boundary": "Decoded END frame through alignment, four slot readings, presence/difference checks and assembly. END total additionally includes atomic storage and serialization. Excludes capture/transport, file decoding and initialization. These are individual replay calls, not a large latency benchmark.",
+        "timing_boundary": "Decoded END frame through optional alignment (see alignment_mode), four slot readings, presence/difference checks and assembly. END total additionally includes atomic storage and serialization. Excludes capture/transport, file decoding and initialization. These are individual replay calls, not a large latency benchmark.",
         "limitations": [
             "Photo-derived planar composites, not real Quest footage; four calibrated slots.",
             "All new letters must be visible together in the one END frame. No temporal voting or recovery.",
             "New means a different letter or previously empty slot. An identical letter replaced at the same slot is indistinguishable; END on an empty board first enables reuse while preserving history.",
-            "Saved boxes come from slot calibration. ArUco estimates the moving camera projection; no 3D Unity coordinates.",
+            (
+                "Saved boxes come from slot calibration. ArUco estimates the moving camera projection; no 3D Unity coordinates."
+                if alignment_mode == "aruco"
+                else "Fixed image slots with no camera alignment, tracking or automatic brick localization. Coordinates become inaccurate if the camera or bricks move."
+            ),
             "Unrecognized visible slots reject the entire capture, but confidently wrong classifications remain possible.",
             "No ChatGPT request was sent. WRITE_AGAIN changes local storage; word-only payloads do not retract any previously delivered external message.",
         ],
@@ -258,18 +282,18 @@ def replay(dataset, out, *, reader_factory=None, recognition_method="six_dot"):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--method", choices=["six_dot", "color"], default="six_dot")
+    parser.add_argument("--alignment", choices=["aruco", "none"], default="aruco")
     parser.add_argument("--dataset", type=Path)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument(
         "--dictionary", type=Path, default=ROOT / "color_dictionary.json"
     )
     args = parser.parse_args()
-    dataset = args.dataset or ROOT / "datasets" / (
-        "end_only_color" if args.method == "color" else "end_only_six_dot"
-    )
-    out = args.output_dir or ROOT / "outputs" / (
-        "end_only_color" if args.method == "color" else "end_only_six_dot"
-    )
+    name = "end_only_color" if args.method == "color" else "end_only_six_dot"
+    if args.alignment == "none":
+        name += "_no_alignment"
+    dataset = args.dataset or ROOT / "datasets" / name
+    out = args.output_dir or ROOT / "outputs" / name
     factory = None
     if args.method == "color":
         from color_reader import ColorReader
@@ -282,6 +306,7 @@ def main():
         out,
         reader_factory=factory,
         recognition_method="example_color" if args.method == "color" else "six_dot",
+        alignment_mode=args.alignment,
     )
     print(json.dumps(report, indent=2))
     if not all(report["checks"].values()):

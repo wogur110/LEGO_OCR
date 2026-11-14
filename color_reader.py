@@ -10,7 +10,7 @@ from time import perf_counter
 
 import cv2
 import numpy as np
-from braille_reader import validate_layout
+from braille_geometry import validate_layout
 
 DESTINATION = np.float32([[0, 0], [79, 0], [79, 159], [0, 159]])
 

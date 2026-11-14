@@ -11,20 +11,23 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from braille_reader import DESTINATION
+from braille_geometry import DESTINATION
 from read_braille import write_image
 
 ROOT = Path(__file__).resolve().parent
 WORDS = ["JUDY", "FOX", "RAIN", "TREE"]
 
 
-def make_reference():
+def make_reference(*, with_markers=True):
     image = np.full((640, 960, 3), 80, np.uint8)
-    dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_100)
-    for identifier, (x, y) in enumerate([(32, 32), (864, 32), (32, 544), (864, 544)]):
-        image[y - 12 : y + 76, x - 12 : x + 76] = 255
-        marker = cv2.aruco.generateImageMarker(dictionary, identifier, 64)
-        image[y : y + 64, x : x + 64] = cv2.cvtColor(marker, cv2.COLOR_GRAY2BGR)
+    if with_markers:
+        dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_100)
+        for identifier, (x, y) in enumerate(
+            [(32, 32), (864, 32), (32, 544), (864, 544)]
+        ):
+            image[y - 12 : y + 76, x - 12 : x + 76] = 255
+            marker = cv2.aruco.generateImageMarker(dictionary, identifier, 64)
+            image[y : y + 64, x : x + 64] = cv2.cvtColor(marker, cv2.COLOR_GRAY2BGR)
     cells = []
     for i in range(4):
         x, y = 230 + 110 * i, 220
@@ -112,10 +115,12 @@ def generate(
     provenance=None,
     description=None,
     replacement_word=None,
+    with_markers=True,
+    camera_motion=True,
 ):
     out.mkdir(parents=True, exist_ok=True)
     (out / "frames").mkdir(exist_ok=True)
-    reference, layout = make_reference()
+    reference, layout = make_reference(with_markers=with_markers)
     words = WORDS if words is None else list(words)
     if not words:
         raise ValueError("Provide at least one word")
@@ -131,7 +136,11 @@ def generate(
     def end_frame(word, event_id):
         occupied = dict(enumerate(word))
         image, transform = compose_frame(
-            reference, layout, atlas, occupied, camera_index=7 + 17 * len(annotations)
+            reference,
+            layout,
+            atlas,
+            occupied,
+            camera_index=7 + 17 * len(annotations) if camera_motion else None,
         )
         path = f"frames/{len(annotations):04}.png"
         write_image(out / path, image)
@@ -184,8 +193,15 @@ def generate(
                 "words": words,
                 "replacement_word": replacement_word,
                 "final_words": [*words[:-1], replacement_word],
+                "markers_in_scene": with_markers,
+                "camera_motion": camera_motion,
                 "simulation": description
-                or "One final photo-derived frame per END, four fixed slots, planar camera motion; no START or intermediate frames.",
+                or (
+                    "One final photo-derived frame per END, four fixed slots; "
+                    + ("planar camera motion" if camera_motion else "stationary camera")
+                    + (", ArUco markers" if with_markers else ", no markers")
+                    + "; no START or intermediate frames."
+                ),
             },
             indent=2,
         )
@@ -202,13 +218,22 @@ def generate(
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--project-root", type=Path, default=ROOT)
-    p.add_argument(
-        "--output-dir", type=Path, default=ROOT / "datasets/end_only_six_dot"
-    )
+    p.add_argument("--output-dir", type=Path)
+    p.add_argument("--without-markers", action="store_true")
+    p.add_argument("--stationary", action="store_true")
     args = p.parse_args()
+    output = args.output_dir or ROOT / "datasets" / (
+        "end_only_six_dot_no_alignment" if args.without_markers else "end_only_six_dot"
+    )
     print(
         json.dumps(
-            generate(args.project_root, args.output_dir, replacement_word="REED"),
+            generate(
+                args.project_root,
+                output,
+                replacement_word="REED",
+                with_markers=not args.without_markers,
+                camera_motion=not args.stationary,
+            ),
             indent=2,
         )
     )

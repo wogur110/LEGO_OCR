@@ -1,0 +1,135 @@
+{
+  "version": 1,
+  "board_id": "lego-a4-landscape-aruco-v1",
+  "marker_family": "DICT_4X4_100",
+  "qr_version": null,
+  "qr_error_correction": null,
+  "page_mm": [
+    297.0,
+    210.0
+  ],
+  "orientation": "landscape",
+  "coordinates": "millimeters; origin at page top-left; +x right; +y down",
+  "print_scale": 1.0,
+  "scale_bar_mm": 50,
+  "clear_center_xyxy_mm": [
+    65,
+    43,
+    232,
+    167
+  ],
+  "clear_center_size_mm": [
+    167,
+    124
+  ],
+  "markers": [
+    {
+      "corner": "TL",
+      "id": 0,
+      "symbol_side_mm": 36.0,
+      "modules_per_side": 6,
+      "quiet_zone_min_mm": 6.0,
+      "corners_mm_tl_tr_br_bl": [
+        [
+          15,
+          15
+        ],
+        [
+          51.0,
+          15
+        ],
+        [
+          51.0,
+          51.0
+        ],
+        [
+          15,
+          51.0
+        ]
+      ]
+    },
+    {
+      "corner": "TR",
+      "id": 1,
+      "symbol_side_mm": 36.0,
+      "modules_per_side": 6,
+      "quiet_zone_min_mm": 6.0,
+      "corners_mm_tl_tr_br_bl": [
+        [
+          246,
+          15
+        ],
+        [
+          282.0,
+          15
+        ],
+        [
+          282.0,
+          51.0
+        ],
+        [
+          246,
+          51.0
+        ]
+      ]
+    },
+    {
+      "corner": "BL",
+      "id": 2,
+      "symbol_side_mm": 36.0,
+      "modules_per_side": 6,
+      "quiet_zone_min_mm": 6.0,
+      "corners_mm_tl_tr_br_bl": [
+        [
+          15,
+          159
+        ],
+        [
+          51.0,
+          159
+        ],
+        [
+          51.0,
+          195.0
+        ],
+        [
+          15,
+          195.0
+        ]
+      ]
+    },
+    {
+      "corner": "BR",
+      "id": 3,
+      "symbol_side_mm": 36.0,
+      "modules_per_side": 6,
+      "quiet_zone_min_mm": 6.0,
+      "corners_mm_tl_tr_br_bl": [
+        [
+          246,
+          159
+        ],
+        [
+          282.0,
+          159
+        ],
+        [
+          282.0,
+          195.0
+        ],
+        [
+          246,
+          195.0
+        ]
+      ]
+    }
+  ],
+  "reference_raster_dpi": 300,
+  "reference_raster": "lego_board_A4_ArUco_reference.png",
+  "notes": [
+    "Marker coordinates describe the printed paper plane, not brick tops.",
+    "This is board geometry, not a calibrated BrailleReader slot layout.",
+    "Existing slot layouts and empty references must be recalibrated for this board.",
+    "The QR board needs a QR detector; BoardAligner currently uses ArUco."
+  ]
+}

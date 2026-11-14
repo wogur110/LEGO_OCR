@@ -3,7 +3,7 @@
 import cv2
 import numpy as np
 
-from braille_reader import validate_layout
+from braille_geometry import validate_layout
 
 
 def gray(image):

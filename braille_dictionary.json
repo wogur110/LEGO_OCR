@@ -1,6 +1,7 @@
 {
-  "language": "Standard English Braille",
-  "scope": "Uncontracted alphabet and integer-number subset",
+  "language": "English Braille with project-specific LEGO alias",
+  "decoder_id": "lego_english_a16_punctuation_v2",
+  "scope": "Alphabet, numbers, basic punctuation and indicators; not a full UEB translator",
   "dot_numbering": [
     [
       1,
@@ -216,6 +217,97 @@
       6
     ]
   },
+  "indicator_display_symbols": {
+    "number": "#",
+    "capital": "<CAP>",
+    "grade1": "<GRADE1>"
+  },
+  "punctuation": {
+    ".": [
+      2,
+      5,
+      6
+    ],
+    "?": [
+      2,
+      3,
+      6
+    ],
+    "!": [
+      2,
+      3,
+      5
+    ],
+    "'": [
+      3
+    ],
+    ",": [
+      2
+    ],
+    "-": [
+      3,
+      6
+    ]
+  },
+  "lego_png_last_row": [
+    {
+      "symbol": "?",
+      "dots": [
+        2,
+        3,
+        6
+      ],
+      "kind": "punctuation"
+    },
+    {
+      "symbol": "!",
+      "dots": [
+        2,
+        3,
+        5
+      ],
+      "kind": "punctuation"
+    },
+    {
+      "symbol": "'",
+      "dots": [
+        3
+      ],
+      "kind": "punctuation"
+    },
+    {
+      "symbol": ",",
+      "dots": [
+        2
+      ],
+      "kind": "punctuation"
+    },
+    {
+      "symbol": "-",
+      "dots": [
+        3,
+        6
+      ],
+      "kind": "punctuation"
+    },
+    {
+      "symbol": "#",
+      "dots": [
+        3,
+        4,
+        5,
+        6
+      ],
+      "kind": "indicator"
+    }
+  ],
+  "project_letter_aliases": {
+    "A": [
+      1,
+      6
+    ]
+  },
+  "project_alias_rule": "Dots 1+6 additionally decode as A by user request; standard A (dot 1) remains supported. This alias does not change digit 1.",
   "number_rule": "A-J share their patterns with 1-9,0; a number indicator or explicitly selected numeric mode is required to disambiguate",
   "sources": [
     "https://www.brailleauthority.org/ueb/NZ%20UEB%20Manual%202011.pdf",

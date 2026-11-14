@@ -56,7 +56,7 @@ class BrailleCodeTests(unittest.TestCase):
         self.assertEqual(decode_sequence([NUMBER_MASK, 1, 48, 1], "auto")["text"], "1A")
 
     def test_unknown_cells_and_non_alphabet_patterns_are_not_guessed(self):
-        self.assertEqual(decode_mask(33)["kind"], "unsupported")  # dots 1,6 is not A.
+        self.assertEqual(decode_mask(8)["kind"], "unsupported")  # dot 4 is outside this subset.
         self.assertEqual(decode_sequence([13, 21, None, 29])["text"], "MO?N")
         self.assertEqual(
             decode_sequence([NUMBER_MASK, 1, None, 1], "auto")["text"], "1?A"
@@ -67,6 +67,44 @@ class BrailleCodeTests(unittest.TestCase):
         for dots in [[0], [7], [1, 1], [True]]:
             with self.assertRaises(ValueError):
                 dots_to_mask(dots)
+
+    def test_project_a_alias_does_not_change_standard_a_or_digit_one(self):
+        alias = decode_mask(33)
+        self.assertEqual(alias["raised_dots"], [1, 6])
+        self.assertEqual(alias["letter_candidate"], "A")
+        self.assertEqual(alias["mapping_source"], "project_alias")
+        self.assertIsNone(alias["number_candidate"])
+        self.assertEqual(decode_sequence([33, 1])["text"], "AA")
+        self.assertEqual(decode_sequence([33, 1], "numbers")["text"], "?1")
+
+    def test_period_survives_word_and_decimal_decoding(self):
+        period = dots_to_mask([2, 5, 6])
+        word = [dots_to_mask(LETTER_DOTS[c]) for c in "TREE"] + [period]
+        self.assertEqual(decode_sequence(word)["text"], "TREE.")
+        self.assertTrue(decode_sequence(word)["complete"])
+        self.assertEqual(decode_mask(period)["kind"], "punctuation")
+        self.assertIsNone(decode_mask(period)["letter_candidate"])
+        self.assertEqual(decode_sequence([NUMBER_MASK, 1, period, 3], "auto")["text"], "1.2")
+
+    def test_photo_last_row_symbols_and_question_mark_completeness(self):
+        # Explicit patterns from the six bricks, independent of the dictionary.
+        masks = [dots_to_mask(dots) for dots in [(2, 3, 6), (2, 3, 5), (3,), (2,), (3, 6), (3, 4, 5, 6)]]
+        decoded = decode_sequence(masks)
+        self.assertEqual(decoded["text"], "?!',-#")
+        self.assertTrue(decoded["complete"])
+        self.assertEqual(decoded["tokens"][0]["reason"], "punctuation")
+        self.assertEqual(decode_mask(masks[-1])["indicator"], "number")
+        self.assertFalse(decode_sequence([None])["complete"])
+        self.assertFalse(decode_sequence([8])["complete"])
+        self.assertTrue(decode_sequence([masks[0]])["complete"])
+        self.assertFalse(decode_sequence([masks[0], None])["complete"])
+
+    def test_punctuation_numeric_context(self):
+        self.assertEqual(decode_sequence([NUMBER_MASK, 1, 2, 3], "auto")["text"], "1,2")
+        for punctuation in [38, 22, 4, 36]:  # question, exclamation, apostrophe, hyphen
+            with self.subTest(punctuation=punctuation):
+                self.assertEqual(decode_sequence([NUMBER_MASK, 1, punctuation, 3], "auto")["text"][-1], "B")
+                self.assertEqual(decode_sequence([1, punctuation, 3], "numbers")["text"][-1], "2")
 
 
 class StudGeometryTests(unittest.TestCase):

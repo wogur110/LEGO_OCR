@@ -1,7 +1,8 @@
 """One-frame END / WRITE_AGAIN / RESET word capture in calibrated board slots.
 
 No START, frame history, or temporal voting is used. A board snapshot is separate
-from saved word history. Coordinates are board-reference pixels, not 3D poses.
+from saved word history. Coordinates are calibrated pixels, not 3D poses.
+ArUco updates image regions by default; alignment_mode="none" keeps them fixed.
 """
 
 import copy
@@ -25,13 +26,21 @@ class WordRecorder:
         storage_path,
         board_id="simulation-board",
         reader_factory=None,
+        alignment_mode="aruco",
     ):
         self.reader_factory = reader_factory or BrailleReader
         self.layout = copy.deepcopy(layout)
         self.storage_path = Path(storage_path)
         if len({c["row_id"] for c in layout["cells"]}) != 1:
             raise ValueError("The capture prototype accepts one calibrated row")
-        self.aligner = BoardAligner(empty_reference, layout, method="aruco")
+        if alignment_mode not in {"aruco", "none"}:
+            raise ValueError("alignment_mode must be aruco or none")
+        self.alignment_mode = alignment_mode
+        self.aligner = (
+            BoardAligner(empty_reference, layout, method="aruco")
+            if alignment_mode == "aruco"
+            else None
+        )
         reference_reader = self.reader_factory(layout)
         reference_result, self.empty_crops = reference_reader.read(empty_reference)
         method = reference_result.get("method", "six_dot")
@@ -46,6 +55,7 @@ class WordRecorder:
             "version": 2,
             "board_id": board_id,
             "recognition_method": method,
+            "alignment_mode": alignment_mode,
             "calibration_id": calibration,
             "generation": str(uuid4()),
             "words": [],
@@ -67,8 +77,12 @@ class WordRecorder:
                 if (
                     stored.get("calibration_id") != calibration
                     or stored.get("recognition_method") != method
+                    or stored.get("alignment_mode", "aruco") != alignment_mode
                 ):
-                    raise ValueError("Storage uses a different calibration or reader")
+                    raise ValueError(
+                        "Storage uses a different calibration, reader or alignment mode"
+                    )
+                stored.setdefault("alignment_mode", "aruco")
                 self._data = stored
             else:
                 raise ValueError("Unsupported storage schema")
@@ -102,14 +116,27 @@ class WordRecorder:
 
     def _observe(self, frame):
         self.analysis_count += 1
-        homography, alignment = self.aligner.align(frame)
-        if homography is None:
-            return None, alignment
         adjusted = copy.deepcopy(self.layout)
-        adjusted["image_size"] = [frame.shape[1], frame.shape[0]]
-        inverse = np.linalg.inv(homography)
-        for cell in adjusted["cells"]:
-            cell["quad"] = project(cell["quad"], inverse).tolist()
+        if self.alignment_mode == "none":
+            alignment = {
+                "status": "disabled",
+                "method": "none",
+                "reason": "fixed_calibrated_image_coordinates",
+            }
+            if adjusted["image_size"] != [frame.shape[1], frame.shape[0]]:
+                return None, {
+                    **alignment,
+                    "status": "rejected",
+                    "reason": "fixed_layout_image_size_mismatch",
+                }
+        else:
+            homography, alignment = self.aligner.align(frame)
+            if homography is None:
+                return None, alignment
+            adjusted["image_size"] = [frame.shape[1], frame.shape[0]]
+            inverse = np.linalg.inv(homography)
+            for cell in adjusted["cells"]:
+                cell["quad"] = project(cell["quad"], inverse).tolist()
         try:
             result, crops = self.reader_factory(adjusted).read(frame)
         except ValueError as error:
@@ -139,7 +166,7 @@ class WordRecorder:
                     "slot": calibrated["slot_index"],
                     "presence": presence,
                     "appearance_change": difference,
-                    "letter": cell["letter_candidate"]
+                    "letter": (cell["letter_candidate"] or cell.get("punctuation_candidate"))
                     if presence == "present"
                     else None,
                     "bits": cell.get("bits"),
@@ -241,7 +268,13 @@ class WordRecorder:
             common["removed_word_id"] = self.rewrite_pending["removed_word_id"]
         if observations is None:
             return self._finish(
-                {**common, "status": "needs_review", "reason": "tracking_lost"},
+                {
+                    **common,
+                    "status": "needs_review",
+                    "reason": alignment["reason"]
+                    if self.alignment_mode == "none"
+                    else "tracking_lost",
+                },
                 event_id,
                 signal,
                 started,
@@ -339,7 +372,10 @@ class WordRecorder:
                 "letters": letters,
                 "board_id": data["board_id"],
                 "recognition_method": data["recognition_method"],
-                "coordinate_system": "board_reference_pixels",
+                "alignment_mode": self.alignment_mode,
+                "coordinate_system": "calibrated_image_pixels"
+                if self.alignment_mode == "none"
+                else "board_reference_pixels",
                 "box_xyxy": [
                     *points.min(axis=0).tolist(),
                     *points.max(axis=0).tolist(),
