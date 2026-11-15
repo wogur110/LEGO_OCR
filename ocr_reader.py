@@ -22,23 +22,26 @@ DECODER_ID = "lego_ocr_letters_period_v1"
 LABEL_CORNERS = np.float32([[2, 110], [77, 110], [77, 158], [2, 158]])
 LABEL_SIZE = (76, 49)
 LABEL_DESTINATION = np.float32([[0, 0], [75, 0], [75, 48], [0, 48]])
-MIN_OCR_SCORE = 0.5
+MIN_OCR_SCORE = 0.85
 
 
 class CalibratedOCRReader:
-    def __init__(self, layout, *, threads=4, engine=None):
+    def __init__(self, layout, *, threads=4, engine=None, min_score=MIN_OCR_SCORE):
         if not isinstance(layout, dict) or len(layout.get("image_size", [])) != 2:
             raise ValueError("Layout needs image_size [width,height]")
         validate_layout(layout, tuple(layout["image_size"]))
         if type(threads) is not int or threads < 1:
             raise ValueError("threads must be a positive integer")
+        if not np.isfinite(min_score) or not 0 <= min_score <= 1:
+            raise ValueError("min_score must be between 0 and 1")
+        self.min_score = float(min_score)
         self.layout = copy.deepcopy(layout)
         self.dictionary = {
             "decoder_id": DECODER_ID,
             "output_characters": "ABCDEFGHIJKLMNOPQRSTUVWXYZ.",
             "aliases": {"0": "O", "JO": "J", "leading_1": "I"},
             "suffix_rule": "One trailing digit is discarded after the letter",
-            "min_ocr_score": MIN_OCR_SCORE,
+            "min_ocr_score": self.min_score,
         }
         self.regions = []
         for cell in self.layout["cells"]:
@@ -47,8 +50,7 @@ class CalibratedOCRReader:
             transform = cv2.getPerspectiveTransform(polygon, LABEL_DESTINATION)
             self.regions.append((polygon, transform))
         if engine is None:
-            # Optional dependency: importing or running the six-dot path never
-            # imports RapidOCR or loads its models.
+            # Initialize once; the combined reader reuses this engine across frames.
             from rapidocr_onnxruntime import RapidOCR
 
             engine = RapidOCR(
@@ -61,12 +63,12 @@ class CalibratedOCRReader:
         self.engine = engine
 
     @staticmethod
-    def _interpret(text, score, crop):
+    def _interpret(text, score, crop, min_score=MIN_OCR_SCORE):
         score = float(score)
         score = score if np.isfinite(score) else None
         candidate = normalize_label(text)
         needs_period_check = (
-            score is None or score < MIN_OCR_SCORE or candidate in (None, ".")
+            score is None or score < min_score or candidate in (None, ".")
         )
         period = detect_period(crop) if needs_period_check else {
             "accepted": False, "reason": "valid_letter_ocr"
@@ -78,13 +80,13 @@ class CalibratedOCRReader:
             )
         else:
             accepted = (
-                score is not None and score >= MIN_OCR_SCORE and candidate is not None
+                score is not None and score >= min_score and candidate is not None
             )
             value = candidate if accepted else "?"
             source, accepted_score = "ocr", score
             reason = (
                 "recognized" if accepted
-                else "low_ocr_score" if score is None or score < MIN_OCR_SCORE
+                else "low_ocr_score" if score is None or score < min_score
                 else "unsupported_label"
             )
         return {
@@ -129,7 +131,7 @@ class CalibratedOCRReader:
                 "slot_index": cell["slot_index"],
                 "face_polygon": np.float32(cell["quad"]).tolist(),
                 "label_polygon": polygon.tolist(),
-                **self._interpret(text, score, crop),
+                **self._interpret(text, score, crop, self.min_score),
             })
         rows = []
         for row_id in dict.fromkeys(cell["row_id"] for cell in self.layout["cells"]):

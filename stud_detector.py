@@ -1,8 +1,9 @@
 """Detect the six stud positions in a rectified 80-by-120 LEGO face crop.
 
 Candidate circles must satisfy local contrast, edge coverage, and circular edge
-orientation checks. Strict evidence asserts a stud; weak evidence leaves that
-position uncertain. These scores are diagnostics, not probabilities.
+orientation checks. Strict evidence asserts a stud; weak rims or unexplained
+local structure remain uncertain. Absence needs local support. These scores
+are diagnostics, not probabilities.
 """
 
 from __future__ import annotations
@@ -11,13 +12,15 @@ import cv2
 import numpy as np
 
 from braille_geometry import CENTERS
+from stud_quality import inspect_unconfirmed_slots
 
 # Baseline for future detector comparisons. Advance the ID when recognition
 # behavior changes; code-only refactors keep the same identity.
-ALGORITHM_ID = "six_dot_radial_v3"
+ALGORITHM_ID = "six_dot_local_quality_v4"
 ALGORITHM_DESCRIPTION = (
     "calibrated six-dot stud detection with radial verification, "
-    "coarse and contrast-normalized proposals, and texture-adaptive rim support; no OCR"
+    "coarse and contrast-normalized proposals, texture-adaptive rim support, "
+    "and local missing-stud uncertainty; no OCR"
 )
 
 ANGLES = np.arange(48) * np.pi / 24
@@ -159,9 +162,14 @@ def detect_dots(crop, clahe):
     sharpness = float(
         cv2.Laplacian(cv2.GaussianBlur(raw, (3, 3), 0.5), cv2.CV_32F).var()
     )
-    if sharpness < 8 or float(raw.std()) < 3:
+    # Whole-crop sharpness depends on stud count and is diagnostic only.
+    # Native scale is reported by the reader; actual local rim evidence drives
+    # decisions, including for the approximately seven-pixel Quest studs.
+    if float(raw.std()) < 3:
         return {
             "bits": [None] * 6,
+            "local_quality": [],
+            "grid_max_offset_error_px": None,
             "sharpness": sharpness,
             "circles": [],
             "dot_evidence": [],
@@ -237,14 +245,45 @@ def detect_dots(crop, clahe):
             circles_output.append(item)
             _record_candidate(item, evidence, rejected_dots)
 
+    local_quality, uncertain = inspect_unconfirmed_slots(raw, evidence, circles_output)
+    for quality in local_quality:
+        if not quality["absence_supported"]:
+            continue
+        # Rim-only studs can have the same center intensity as the background.
+        # Check their expected location even when Hough proposed no circle.
+        support, _ = _radial_scores(
+            coarse_gradients, *quality["aligned_center"], quality["reference_radius"],
+            magnitude_floor=coarse_magnitude_floor,
+        )
+        quality["coarse_radial_support"] = support
+        if support >= (0.5 if coarse_magnitude_floor > 15 else 0.4):
+            uncertain.add(quality["dot"] - 1)
+            quality["absence_supported"] = False
+            quality["uncertainty_reasons"].append("unconfirmed_radial_structure")
     bits = [
-        True if e["strict"] is not None else None if e["weak"] is not None else False
-        for e in evidence
+        True if e["strict"] is not None else None if i in uncertain else False
+        for i, e in enumerate(evidence)
     ]
+    strict = [e["strict"] for e in evidence if e["strict"] is not None]
+    grid_error = None
+    reason = "ambiguous_dot" if any(b is None for b in bits) else "ok"
+    if len(strict) >= 2:
+        offsets = np.array([np.array(c["center"]) - CENTERS[c["dot"] - 1] for c in strict])
+        grid_error = float(np.linalg.norm(offsets - np.median(offsets, axis=0), axis=1).max())
+        # A quarter of the 40-pixel pitch: individually circular marks must
+        # still agree on one translated grid. Do not guess a replacement cell.
+        if grid_error > 10:
+            bits = [None] * 6
+            reason = "inconsistent_stud_grid"
+            for quality in local_quality:
+                quality["absence_supported"] = False
+                quality["uncertainty_reasons"].append(reason)
     return {
         "bits": bits,
+        "local_quality": local_quality,
+        "grid_max_offset_error_px": grid_error,
         "sharpness": sharpness,
         "circles": circles_output,
         "dot_evidence": evidence,
-        "reason": "ambiguous_dot" if any(b is None for b in bits) else "ok",
+        "reason": reason,
     }

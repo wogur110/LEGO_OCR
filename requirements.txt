@@ -1,3 +1,5 @@
-# Six-dot detection and optional board alignment; Python 3.11 or 3.12.
-opencv-contrib-python==4.10.0.84
+# Combined recognition runtime; Python 3.11 or 3.12.
 numpy==1.26.4
+opencv-python==4.10.0.84
+rapidocr-onnxruntime==1.4.4
+onnxruntime==1.20.1

@@ -1,13 +1,14 @@
 """Read calibrated LEGO faces through rectification, stud detection and decoding.
 
 The nominal upper three stud rows are used; calibration must keep printed marks
-outside that crop. Geometry and preview exports remain available for callers.
+outside that crop. Cancellation stops unused work between calibrated cells.
 """
 
 from __future__ import annotations
 
 import copy
 import json
+from concurrent.futures import CancelledError
 from dataclasses import dataclass
 from time import perf_counter
 
@@ -16,7 +17,6 @@ import numpy as np
 
 from braille_code import DECODER_ID, decode_mask, decode_sequence
 from braille_geometry import CENTERS, DESTINATION, project, validate_layout
-from braille_visualization import previews as previews
 from stud_detector import ALGORITHM_DESCRIPTION, ALGORITHM_ID
 from stud_detector import detect_dots as detect_dots
 
@@ -54,9 +54,15 @@ class BrailleReader:
         self.layout, self.mode = copy.deepcopy(layout), mode
         self.clahe = cv2.createCLAHE(clipLimit=2, tileGridSize=(4, 4))
 
-    def _rectify_faces(self, image):
+    @staticmethod
+    def _check_cancel(cancel_event):
+        if cancel_event is not None and cancel_event.is_set():
+            raise CancelledError("Six-dot result no longer needed")
+
+    def _rectify_faces(self, image, *, cancel_event=None):
         prepared, crops = [], []
         for cell in self.layout["cells"]:
+            self._check_cancel(cancel_event)
             polygon = np.float32(cell["quad"])
             transform = cv2.getPerspectiveTransform(polygon, DESTINATION)
             inverse = np.linalg.inv(transform)
@@ -64,26 +70,23 @@ class BrailleReader:
             crop = cv2.warpPerspective(
                 image, transform, (80, 120), flags=cv2.INTER_CUBIC
             )
-            diameter = 0.3 * min(
-                np.linalg.norm(polygon[1] - polygon[0]),
-                np.linalg.norm(polygon[2] - polygon[3]),
+            # Project the nominal 24-pixel stud diameter along both axes.
+            # The shortest ellipse axis accounts for vertical foreshortening
+            # as well as face width; use the smallest of the six source scales.
+            horizontal = project(CENTERS + [12, 0], inverse) - project(
+                CENTERS - [12, 0], inverse
             )
+            vertical = project(CENTERS + [0, 12], inverse) - project(
+                CENTERS - [0, 12], inverse
+            )
+            axes = np.stack((horizontal, vertical), axis=-1)
+            diameter = float(np.linalg.svd(axes, compute_uv=False)[:, -1].min())
             prepared.append(_PreparedFace(cell, polygon, inverse, diameter))
             crops.append(crop)
         return prepared, crops
 
     def _read_cell(self, face, crop):
-        observation = (
-            detect_dots(crop, self.clahe)
-            if face.source_stud_diameter >= 8
-            else {
-                "bits": [None] * 6,
-                "sharpness": None,
-                "circles": [],
-                "dot_evidence": [],
-                "reason": "too_small",
-            }
-        )
+        observation = detect_dots(crop, self.clahe)
         decoded = _decode_bits(observation["bits"])
         accepted = decoded["kind"] in {"letter", "punctuation"}
         reason = observation["reason"]
@@ -120,16 +123,18 @@ class BrailleReader:
             rows.append({"row_id": row_id, **sequence})
         return rows
 
-    def read(self, image):
+    def read(self, image, *, cancel_event=None):
         start = perf_counter()
+        self._check_cancel(cancel_event)
         height, width = image.shape[:2]
         validate_layout(self.layout, (width, height))
-        prepared, crops = self._rectify_faces(image)
+        prepared, crops = self._rectify_faces(image, cancel_event=cancel_event)
         warped = perf_counter()
-        detections = [
-            self._read_cell(face, crop)
-            for face, crop in zip(prepared, crops, strict=True)
-        ]
+        detections = []
+        for face, crop in zip(prepared, crops, strict=True):
+            self._check_cancel(cancel_event)
+            detections.append(self._read_cell(face, crop))
+        self._check_cancel(cancel_event)
         detected = perf_counter()
         payload = {
             "algorithm_id": ALGORITHM_ID,
