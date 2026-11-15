@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "image_size": [
+    346,
+    198
+  ],
+  "description": "Manually inspected full top-face corners for image.png, excluding front/side faces. Frozen before either reader ran. Geometry only; no expected letters or dot patterns.",
+  "coordinate_system": "Original image pixels; full face TL,TR,BR,BL; row ordered left to right.",
+  "source_image_sha256": "397e712abb2fbe0bd56ed501e0138c612945ab46c5c5ecc984fa0a4a2b7e4b6b",
+  "cells": [
+    {
+      "row_id": "row1",
+      "slot_index": 0,
+      "quad": [
+        [
+          138,
+          51
+        ],
+        [
+          163,
+          52
+        ],
+        [
+          162,
+          97
+        ],
+        [
+          137,
+          96
+        ]
+      ]
+    },
+    {
+      "row_id": "row1",
+      "slot_index": 1,
+      "quad": [
+        [
+          163,
+          52
+        ],
+        [
+          186,
+          53
+        ],
+        [
+          185,
+          99
+        ],
+        [
+          162,
+          97
+        ]
+      ]
+    },
+    {
+      "row_id": "row1",
+      "slot_index": 2,
+      "quad": [
+        [
+          186,
+          53
+        ],
+        [
+          210,
+          54
+        ],
+        [
+          210,
+          100
+        ],
+        [
+          185,
+          99
+        ]
+      ]
+    }
+  ]
+}
