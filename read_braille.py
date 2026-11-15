@@ -1,4 +1,4 @@
-"""Read six-dot LEGO Braille patterns from a photo with calibrated top-face corners."""
+"""Read calibrated LEGO faces using six-dot Braille or printed-label OCR."""
 
 from __future__ import annotations
 
@@ -31,9 +31,17 @@ def build_parser():
         help="Calibrated geometry; bundled photos select their layout automatically",
     )
     parser.add_argument(
-        "--mode", choices=["letters", "numbers", "auto"], default="letters"
+        "--method", choices=["braille", "ocr"], default="braille",
+        help="Recognition method: six-dot Braille (default) or printed-label OCR",
     )
-    parser.add_argument("--output-dir", type=Path, default=ROOT / "outputs/braille")
+    parser.add_argument(
+        "--mode", choices=["letters"], default="letters",
+        help="Recognize A-Z and period only (default: letters)",
+    )
+    parser.add_argument(
+        "--output-dir", type=Path,
+        help="Output directory (default: outputs/braille or outputs/ocr for the selected method)",
+    )
     parser.add_argument("--threads", type=int, default=4)
     return parser
 
@@ -71,13 +79,15 @@ def parse_arguments(parser, argv=None):
     args.layout = resolve_layout(args.image, args.layout, parser)
     if args.threads < 1:
         parser.error("threads must be positive")
+    if args.output_dir is None:
+        args.output_dir = ROOT / "outputs" / args.method
     return args
 
 
 def write_artifacts(output_dir, image_path, image, result, crops, report):
     """Write the JSON report, previews and per-cell crops; return the report path."""
     output_dir.mkdir(parents=True, exist_ok=True)
-    stem = image_path.stem + "_braille"
+    stem = image_path.stem + "_" + result.get("method", "braille")
     report_path = output_dir / f"{stem}.json"
     report_path.write_text(
         json.dumps(report, indent=2, allow_nan=False) + "\n"
@@ -105,15 +115,36 @@ def main(argv=None):
     if image is None:
         parser.error(f"Cannot read image: {args.image}")
     layout = json.loads(args.layout.read_text())
-    result, crops = BrailleReader(layout, mode=args.mode).read(image)
+    if args.method == "ocr":
+        try:
+            from ocr_reader import CalibratedOCRReader
+
+            reader = CalibratedOCRReader(layout, threads=args.threads)
+        except ModuleNotFoundError as error:
+            if error.name not in {"rapidocr_onnxruntime", "onnxruntime"}:
+                raise
+            parser.error(
+                "OCR needs optional dependencies. In an OCR environment, install them with: "
+                "python -m pip install -r requirements-ocr.txt"
+            )
+        timing_boundary = (
+            "One decoded image through label rectification, OCR, letter normalization, "
+            "period recovery, row assembly and JSON serialization; "
+            "excludes initialization and file I/O"
+        )
+    else:
+        reader = BrailleReader(layout, mode=args.mode)
+        timing_boundary = (
+            "One decoded image through rectification, stud detection, exact lookup, "
+            "row assembly and JSON serialization; excludes initialization and file I/O"
+        )
+    result, crops = reader.read(image)
     report = {
         "image": str(args.image.resolve()),
         "layout": layout,
+        "method": args.method,
         "cpu_threads": args.threads,
-        "timing_boundary": (
-            "One decoded image through rectification, stud detection, exact lookup, "
-            "row assembly and JSON serialization; excludes initialization and file I/O"
-        ),
+        "timing_boundary": timing_boundary,
         **result,
     }
     report_path = write_artifacts(args.output_dir, args.image, image, result, crops, report)

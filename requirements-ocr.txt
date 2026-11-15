@@ -1,0 +1,6 @@
+# Optional OCR environment, Python 3.11 or 3.12; use a separate .venv-ocr.
+# This replaces requirements.txt in that environment to keep one cv2 package.
+numpy==1.26.4
+opencv-python==4.10.0.84
+rapidocr-onnxruntime==1.4.4
+onnxruntime==1.20.1

@@ -7,6 +7,8 @@ from braille_geometry import CENTERS
 
 
 def previews(image, result, crops):
+    if result.get("method") == "ocr":
+        return ocr_previews(image, result, crops)
     annotated, cards = image.copy(), []
     for cell, crop in zip(result["cells"], crops, strict=True):
         poly = np.int32(cell["face_polygon"])
@@ -72,10 +74,10 @@ def previews(image, result, crops):
             (0, 0, 0),
             1,
         )
-        candidate = cell["number_candidate"]
+        status = "accepted" if cell["accepted"] else "unread/unsupported"
         cv2.putText(
             card,
-            f"number: {candidate if candidate is not None else '-'}",
+            status,
             (5, 197),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.43,
@@ -90,4 +92,50 @@ def previews(image, result, crops):
             for i in range(0, len(cards), 7)
         ]
     )
+    return annotated, sheet
+
+
+def ocr_previews(image, result, crops):
+    """Show printed-label crops and raw OCR in the input image's coordinates."""
+    annotated, cards = image.copy(), []
+    for cell, crop in zip(result["cells"], crops, strict=True):
+        face_polygon = np.int32(cell["face_polygon"])
+        label_polygon = np.int32(cell["label_polygon"])
+        color = (30, 160, 30) if cell["accepted"] else (0, 130, 255)
+        cv2.polylines(annotated, [face_polygon], True, (255, 80, 0), 2)
+        cv2.polylines(annotated, [label_polygon], True, color, 2)
+        x, y = label_polygon.min(axis=0)
+        cv2.putText(
+            annotated, cell["value"], (int(x), max(18, int(y) - 5)),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2,
+        )
+        card = np.full((220, 220, 3), 250, np.uint8)
+        enlarged = cv2.resize(crop, (152, 98), interpolation=cv2.INTER_CUBIC)
+        card[10:108, 34:186] = enlarged
+        raw_text = cell.get("raw_ocr_text") or "<empty>"
+        raw_score = cell.get("raw_ocr_score")
+        score_text = "n/a" if raw_score is None else f"{raw_score:.3f}"
+        lines = [
+            f"{cell['row_id']}/{cell['slot_index'] + 1} => {cell['value']}",
+            f"raw: {raw_text}",
+            f"OCR score: {score_text}",
+            "period shape" if cell.get("source") == "printed_period_shape"
+            else "accepted" if cell["accepted"] else "unread/unsupported",
+        ]
+        for line, y_position in zip(lines, (130, 153, 176, 199), strict=True):
+            font_scale = min(0.45, 200 / max(1, cv2.getTextSize(
+                line, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 1
+            )[0][0]))
+            cv2.putText(
+                card, line, (8, y_position), cv2.FONT_HERSHEY_SIMPLEX,
+                font_scale, (0, 0, 0), 1,
+            )
+        cards.append(card)
+    if not cards:
+        return annotated, np.full((220, 220, 3), 250, np.uint8)
+    blank = np.full_like(cards[0], 250)
+    sheet = np.vstack([
+        np.hstack((cards[index:index + 6] + [blank] * 6)[:6])
+        for index in range(0, len(cards), 6)
+    ])
     return annotated, sheet

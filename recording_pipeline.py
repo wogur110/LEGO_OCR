@@ -15,7 +15,25 @@ from uuid import uuid4
 import numpy as np
 
 from board_alignment import BoardAligner, project
+from braille_code import OUTPUT_CHARACTERS
 from braille_reader import BrailleReader
+
+
+def _validate_stored_characters(data):
+    """Reject incompatible recognized text without rewriting saved records."""
+    message = "Storage contains unsupported text; only A-Z and period are supported"
+    for word in data.get("words", []):
+        text = word.get("word")
+        if not isinstance(text, str) or not text or any(c not in OUTPUT_CHARACTERS for c in text):
+            raise ValueError(message)
+        for cell in word.get("letters", []):
+            value = cell.get("letter")
+            if not isinstance(value, str) or value not in OUTPUT_CHARACTERS:
+                raise ValueError(message)
+    for cell in data.get("board_state", []):
+        value = cell.get("letter")
+        if not isinstance(value, str) or value not in OUTPUT_CHARACTERS:
+            raise ValueError(message)
 
 
 class WordRecorder:
@@ -68,6 +86,7 @@ class WordRecorder:
             stored = json.loads(self.storage_path.read_text())
             if stored.get("board_id") != board_id:
                 raise ValueError("Storage belongs to a different board")
+            _validate_stored_characters(stored)
             if stored.get("version") == 1:
                 # Old START/END storage contains no reliable current-board snapshot.
                 # Preserve its words; the first readable END establishes a baseline.
@@ -161,16 +180,20 @@ class WordRecorder:
                 if difference <= 15
                 else "uncertain"
             )
+            character = cell.get("letter_candidate") or cell.get("punctuation_candidate")
+            supported = isinstance(character, str) and character in OUTPUT_CHARACTERS
             observations.append(
                 {
                     "slot": calibrated["slot_index"],
                     "presence": presence,
                     "appearance_change": difference,
-                    "letter": (cell["letter_candidate"] or cell.get("punctuation_candidate"))
-                    if presence == "present"
+                    "letter": character
+                    if presence == "present" and supported
                     else None,
                     "bits": cell.get("bits"),
-                    "reason": cell["reason"],
+                    "reason": "unsupported_output_character"
+                    if presence == "present" and character is not None and not supported
+                    else cell["reason"],
                     "board_polygon": calibrated["quad"],
                     "image_polygon": cell["face_polygon"],
                     "sharpness": cell.get("sharpness"),

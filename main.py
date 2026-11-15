@@ -1,4 +1,4 @@
-"""Read six-dot LEGO Braille patterns from a calibrated image."""
+"""Read calibrated LEGO faces with Braille (default) or --method ocr."""
 
 from read_braille import main
 

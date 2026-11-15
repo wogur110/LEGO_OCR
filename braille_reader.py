@@ -36,12 +36,9 @@ def _decode_bits(bits):
             "raised_dots": None,
             "unicode": None,
             "letter_candidate": None,
-            "number_candidate": None,
             "punctuation_candidate": None,
-            "indicator": None,
             "mapping_source": None,
             "kind": "uncertain",
-            "requires_number_context": False,
         }
     mask = sum(1 << i for i, bit in enumerate(bits) if bit)
     return decode_mask(mask)
@@ -52,8 +49,8 @@ class BrailleReader:
         if not isinstance(layout, dict) or len(layout.get("image_size", [])) != 2:
             raise ValueError("Layout needs image_size [width,height]")
         validate_layout(layout, tuple(layout["image_size"]))
-        if mode not in {"letters", "numbers", "auto"}:
-            raise ValueError("mode must be letters, numbers or auto")
+        if mode != "letters":
+            raise ValueError("Only mode='letters' is supported (A-Z and period)")
         self.layout, self.mode = copy.deepcopy(layout), mode
         self.clahe = cv2.createCLAHE(clipLimit=2, tileGridSize=(4, 4))
 
@@ -88,7 +85,7 @@ class BrailleReader:
             }
         )
         decoded = _decode_bits(observation["bits"])
-        accepted = decoded["kind"] in {"letter", "indicator", "punctuation"}
+        accepted = decoded["kind"] in {"letter", "punctuation"}
         reason = observation["reason"]
         if decoded["mask"] == 0:
             reason = "no_studs_or_blank_cell"
@@ -114,7 +111,7 @@ class BrailleReader:
                 key=lambda cell: cell["slot_index"],
             )
             sequence = decode_sequence(
-                [cell["mask"] if cell["accepted"] else None for cell in cells],
+                [cell["mask"] for cell in cells],
                 self.mode,
             )
             for item, token in zip(cells, sequence["tokens"], strict=True):

@@ -1,7 +1,7 @@
 {
   "language": "English Braille with project-specific LEGO alias",
-  "decoder_id": "lego_english_a16_period_v3",
-  "scope": "Alphabet, numbers, period and indicators; not a full UEB translator",
+  "decoder_id": "lego_english_a16_period_v4",
+  "scope": "Uppercase A-Z and period only; not a full UEB translator",
   "dot_numbering": [
     [
       1,
@@ -155,73 +155,6 @@
       6
     ]
   },
-  "digits_in_numeric_context": {
-    "1": [
-      1
-    ],
-    "2": [
-      1,
-      2
-    ],
-    "3": [
-      1,
-      4
-    ],
-    "4": [
-      1,
-      4,
-      5
-    ],
-    "5": [
-      1,
-      5
-    ],
-    "6": [
-      1,
-      2,
-      4
-    ],
-    "7": [
-      1,
-      2,
-      4,
-      5
-    ],
-    "8": [
-      1,
-      2,
-      5
-    ],
-    "9": [
-      2,
-      4
-    ],
-    "0": [
-      2,
-      4,
-      5
-    ]
-  },
-  "indicators": {
-    "number": [
-      3,
-      4,
-      5,
-      6
-    ],
-    "capital": [
-      6
-    ],
-    "grade1": [
-      5,
-      6
-    ]
-  },
-  "indicator_display_symbols": {
-    "number": "#",
-    "capital": "<CAP>",
-    "grade1": "<GRADE1>"
-  },
   "punctuation": {
     ".": [
       2,
@@ -235,8 +168,8 @@
       6
     ]
   },
-  "project_alias_rule": "Dots 1+6 additionally decode as A by user request; standard A (dot 1) remains supported. This alias does not change digit 1.",
-  "number_rule": "A-J share their patterns with 1-9,0; a number indicator or explicitly selected numeric mode is required to disambiguate",
+  "project_alias_rule": "Dots 1+6 additionally decode as A by user request; standard A (dot 1) remains supported.",
+  "unsupported_rule": "Blank, unread and unsupported cells, including Braille control indicators, produce '?' with diagnostics; digits are never decoded.",
   "sources": [
     "https://www.brailleauthority.org/ueb/NZ%20UEB%20Manual%202011.pdf",
     "https://www.afb.org/diagrams-braille-cells"
