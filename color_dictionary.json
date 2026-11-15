@@ -3,11 +3,6 @@
   "scope": "Example-only user-assigned color code, not Braille",
   "source_image": "samples/lego_color.jpg",
   "assignment_order": "top row left-to-right, then bottom row left-to-right",
-  "words": [
-    "JUDY",
-    "FOX",
-    "RAIN"
-  ],
   "feature": "median CIELAB on the middle-brightness subset of an inset face crop",
   "distance": "Euclidean CIELAB (Delta E 76)",
   "minimum_margin_delta_e76": 2.0,

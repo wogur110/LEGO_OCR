@@ -4,7 +4,7 @@
     1260,
     945
   ],
-  "description": "Manual top-face geometry; row-major assignment JUDYFOXRAIN",
+  "description": "Manual top-face geometry; per-cell color assignments live in color_dictionary.json",
   "cells": [
     {
       "row_id": "row1",

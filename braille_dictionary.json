@@ -1,7 +1,7 @@
 {
   "language": "English Braille with project-specific LEGO alias",
-  "decoder_id": "lego_english_a16_punctuation_v2",
-  "scope": "Alphabet, numbers, basic punctuation and indicators; not a full UEB translator",
+  "decoder_id": "lego_english_a16_period_v3",
+  "scope": "Alphabet, numbers, period and indicators; not a full UEB translator",
   "dot_numbering": [
     [
       1,
@@ -227,80 +227,8 @@
       2,
       5,
       6
-    ],
-    "?": [
-      2,
-      3,
-      6
-    ],
-    "!": [
-      2,
-      3,
-      5
-    ],
-    "'": [
-      3
-    ],
-    ",": [
-      2
-    ],
-    "-": [
-      3,
-      6
     ]
   },
-  "lego_png_last_row": [
-    {
-      "symbol": "?",
-      "dots": [
-        2,
-        3,
-        6
-      ],
-      "kind": "punctuation"
-    },
-    {
-      "symbol": "!",
-      "dots": [
-        2,
-        3,
-        5
-      ],
-      "kind": "punctuation"
-    },
-    {
-      "symbol": "'",
-      "dots": [
-        3
-      ],
-      "kind": "punctuation"
-    },
-    {
-      "symbol": ",",
-      "dots": [
-        2
-      ],
-      "kind": "punctuation"
-    },
-    {
-      "symbol": "-",
-      "dots": [
-        3,
-        6
-      ],
-      "kind": "punctuation"
-    },
-    {
-      "symbol": "#",
-      "dots": [
-        3,
-        4,
-        5,
-        6
-      ],
-      "kind": "indicator"
-    }
-  ],
   "project_letter_aliases": {
     "A": [
       1,

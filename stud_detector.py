@@ -14,10 +14,10 @@ from braille_geometry import CENTERS
 
 # Baseline for future detector comparisons. Advance the ID when recognition
 # behavior changes; code-only refactors keep the same identity.
-ALGORITHM_ID = "six_dot_radial_v1"
+ALGORITHM_ID = "six_dot_radial_v3"
 ALGORITHM_DESCRIPTION = (
-    "calibrated six-dot stud detection with radial verification "
-    "and coarse-smoothed recovery; no OCR"
+    "calibrated six-dot stud detection with radial verification, "
+    "coarse and contrast-normalized proposals, and texture-adaptive rim support; no OCR"
 )
 
 ANGLES = np.arange(48) * np.pi / 24
@@ -36,7 +36,7 @@ def _gradient_fields(gray, sigma):
     )
 
 
-def _radial_scores(gradients, x, y, radius):
+def _radial_scores(gradients, x, y, radius, magnitude_floor=15):
     """Measure whether edge directions follow a circular rim.
 
     Both gradient polarities count, so a dark rim or a bright rim can qualify.
@@ -49,7 +49,7 @@ def _radial_scores(gradients, x, y, radius):
     sy = cv2.remap(gy, xx, yy, cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
     magnitude = np.hypot(sx, sy)
     alignment = np.abs(sx * RADIAL_COS + sy * RADIAL_SIN) / (magnitude + 1e-6)
-    support = float(((alignment >= 0.82) & (magnitude >= 15)).any(axis=0).mean())
+    support = float(((alignment >= 0.82) & (magnitude >= magnitude_floor)).any(axis=0).mean())
     strongest = magnitude.argmax(axis=0)
     weighted = float(np.average(
         alignment[strongest, np.arange(len(ANGLES))],
@@ -73,6 +73,7 @@ def _score_candidate(
     distance_to_edge,
     fine_gradients,
     coarse_gradients,
+    coarse_magnitude_floor,
     shape_cache,
     pass_name,
     source,
@@ -98,10 +99,17 @@ def _score_candidate(
     key = (float(x), float(y), float(radius))
     if key not in shape_cache:
         _, fine_alignment = _radial_scores(fine_gradients, *key)
-        coarse_support, _ = _radial_scores(coarse_gradients, *key)
+        coarse_support, _ = _radial_scores(
+            coarse_gradients, *key, magnitude_floor=coarse_magnitude_floor
+        )
         shape_cache[key] = (fine_alignment, coarse_support)
     fine_alignment, coarse_support = shape_cache[key]
     shape_verified = coarse_support >= 0.4 or fine_alignment >= 0.90
+    # A textured face has many strong, approximately parallel edges. Fine
+    # alignment alone can mistake a ridge or rounded face corner for a stud.
+    # Require half the rim to have radial edges above the crop's noise floor.
+    required_support = 0.5 if coarse_magnitude_floor > 15 else 0.0
+    shape_verified = shape_verified and coarse_support >= required_support
     return {
         "center": [float(x), float(y)],
         "radius": float(radius),
@@ -112,23 +120,29 @@ def _score_candidate(
         "pass": pass_name,
         "radial_alignment": fine_alignment,
         "coarse_radial_support": coarse_support,
+        "coarse_gradient_floor": coarse_magnitude_floor,
+        "required_coarse_support": required_support,
         "shape_verified": shape_verified,
         "proposal_source": source,
     }
 
 
 def _record_candidate(item, evidence, rejected_dots):
-    """Keep the strongest valid evidence and identify dots needing recovery."""
+    """Keep valid evidence and flag plausible but unconfirmed circle locations."""
     index = item["dot"] - 1
     pass_name = item["pass"]
     coverage = item["edge_coverage"]
     threshold = 0.5 if pass_name == "strict" else 0.6
     has_edge_and_contrast = coverage >= threshold and item["local_contrast"] >= 15
+    # Weak-only circles and strict circles failing coverage or shape can be
+    # displaced by texture/blur. This only enables a new proposal pass; it does
+    # not promote the candidate or relax any acceptance threshold.
     if (
         item["proposal_source"] == "normal"
-        and pass_name == "strict"
-        and has_edge_and_contrast
-        and not item["shape_verified"]
+        and evidence[index]["strict"] is None
+        and coverage >= 0.4
+        and item["local_contrast"] >= 15
+        and (pass_name == "weak" or not (has_edge_and_contrast and item["shape_verified"]))
     ):
         rejected_dots.add(index)
     if has_edge_and_contrast and item["shape_verified"]:
@@ -157,6 +171,9 @@ def detect_dots(crop, clahe):
     enhanced, distance_to_edge = _prepare_edges(raw, clahe)
     fine_gradients = _gradient_fields(raw, 1.0)
     coarse_gradients = _gradient_fields(raw, 2.0)
+    coarse_magnitude_floor = max(
+        15.0, 2.0 * float(np.median(np.hypot(*coarse_gradients)))
+    )
     shape_cache = {}
     evidence = [{"dot": i + 1, "strict": None, "weak": None} for i in range(6)]
     circles_output = []
@@ -165,13 +182,31 @@ def detect_dots(crop, clahe):
         ("strict", 12, "normal"),
         ("weak", 10, "normal"),
         ("strict", 12, "coarse_smoothed"),
+        ("strict", 12, "contrast_normalized"),
     ]:
         if source == "coarse_smoothed":
             if not rejected_dots:
                 continue
             # Surface ridges can displace a proposal away from the true stud.
-            # Retry only those rejected dot positions, retaining all other gates.
-            enhanced, distance_to_edge = _prepare_edges(raw, clahe, coarse_smoothed=True)
+            # Smooth only to propose replacements for unconfirmed dot positions.
+            # Verify every proposal against the same normal edge map: stronger
+            # smoothing can erase a real rim even when it improves the circle.
+            # Recovery uses the same contrast, adaptive shape and coverage
+            # checks as the original proposals.
+            enhanced, _ = _prepare_edges(raw, clahe, coarse_smoothed=True)
+        if source == "contrast_normalized":
+            # Bounded gain helps Hough find faint rims. Discard this pass's edge
+            # map: all acceptance scores still use the original raw pixels.
+            # In particular, amplification cannot pass the raw contrast floor.
+            low, high = np.percentile(raw, [5, 95])
+            contrast = float(high - low)
+            gain = min(3.0, max(1.0, 70.0 / max(contrast, 1.0)))
+            if gain <= 1.05 or contrast < 15 or all(e["strict"] for e in evidence):
+                continue
+            normalized = np.clip(
+                (raw.astype(np.float32) - (low + high) / 2) * gain + 128, 0, 255
+            ).astype(np.uint8)
+            enhanced, _ = _prepare_edges(normalized, clahe)
         circles = cv2.HoughCircles(
             enhanced,
             cv2.HOUGH_GRADIENT,
@@ -191,6 +226,7 @@ def detect_dots(crop, clahe):
                 distance_to_edge,
                 fine_gradients,
                 coarse_gradients,
+                coarse_magnitude_floor,
                 shape_cache,
                 pass_name,
                 source,

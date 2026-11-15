@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
-from statistics import mean, median
 
 import cv2
-import numpy as np
 
 from braille_reader import BrailleReader, previews
 
@@ -24,7 +23,7 @@ def build_parser():
     """Build the command-line interface without parsing or reading any files."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "image", nargs="?", type=Path, default=ROOT / "samples/lego.png"
+        "image", nargs="?", type=Path, default=ROOT / "samples/lego_final.jpg"
     )
     parser.add_argument(
         "--layout",
@@ -36,8 +35,6 @@ def build_parser():
     )
     parser.add_argument("--output-dir", type=Path, default=ROOT / "outputs/braille")
     parser.add_argument("--threads", type=int, default=4)
-    parser.add_argument("--warmup", type=int, default=5)
-    parser.add_argument("--runs", type=int, default=30)
     return parser
 
 
@@ -46,8 +43,8 @@ def resolve_layout(image_path, layout_path, parser):
     if layout_path is not None:
         return layout_path
     layouts = {
-        "lego.png": "lego_braille.json",
-        "lego2.jpg": "lego2_braille_full.json",
+        "lego_final.jpg": "lego_final_braille.json",
+        "lego_quest_1.png": "lego_quest_1_braille.json",
     }
     bundled = ROOT / "samples" / image_path.name
     if (
@@ -59,48 +56,22 @@ def resolve_layout(image_path, layout_path, parser):
         parser.error(
             "Provide --layout for a new photo; bundled geometry applies only to the bundled images"
         )
-    return ROOT / "layouts" / layouts[image_path.name]
+    selected = ROOT / "layouts" / layouts[image_path.name]
+    calibration = json.loads(selected.read_text())
+    expected_hash = calibration.get("source_image_sha256")
+    if not expected_hash or hashlib.sha256(image_path.read_bytes()).hexdigest() != expected_hash:
+        parser.error(
+            "Photo changed since calibration; provide --layout with updated face corners"
+        )
+    return selected
 
 
 def parse_arguments(parser, argv=None):
     args = parser.parse_args(argv)
     args.layout = resolve_layout(args.image, args.layout, parser)
-    if args.threads < 1 or args.warmup < 0 or args.runs < 1:
-        parser.error("threads/runs must be positive and warmup nonnegative")
+    if args.threads < 1:
+        parser.error("threads must be positive")
     return args
-
-
-def measure_reader(reader, image, warmup, runs):
-    """Return the final recognition and timings, excluding setup and file I/O."""
-    for _ in range(warmup):
-        reader.read(image)
-    timings = []
-    for _ in range(runs):
-        result, crops = reader.read(image)
-        timings.append(result["timing_ms"])
-    return result, crops, timings
-
-
-def build_report(args, layout, result, timings):
-    """Combine recognition output with the existing benchmark report schema."""
-    values = [t["image_to_result"] for t in timings]
-    return {
-        "image": str(args.image.resolve()),
-        "layout": layout,
-        "cpu_threads": args.threads,
-        "warmup_calls": args.warmup,
-        "measured_calls": args.runs,
-        "timing_boundary": "Decoded image through layout validation, rectification, circle detection, dot assignment, dictionary lookup, row assembly and JSON payload serialization; excludes image/file I/O and one-time reader setup",
-        "timings": timings,
-        "latency_ms": {
-            "mean": mean(values),
-            "median": median(values),
-            "p95": float(np.percentile(values, 95)),
-            "min": min(values),
-            "max": max(values),
-        },
-        **result,
-    }
 
 
 def write_artifacts(output_dir, image_path, image, result, crops, report):
@@ -123,21 +94,8 @@ def write_artifacts(output_dir, image_path, image, result, crops, report):
     return report_path
 
 
-def print_summary(result, latency, report_path):
-    """Print the same row, cell and latency summary as the original CLI."""
-    for row in result["rows"]:
-        print(row["row_id"] + ": " + row["text"])
-    for cell in result["cells"]:
-        print(
-            f"{cell['row_id']}/{cell['slot_index'] + 1}: dots={cell['raised_dots']} value={cell['value']} letter={cell['letter_candidate']} number={cell['number_candidate']} reason={cell['reason']}"
-        )
-    print(
-        f"Image-to-result: mean {latency['mean']:.3f} ms, median {latency['median']:.3f} ms, p95 {latency['p95']:.3f} ms; {len(result['cells'])} cells"
-    )
-    print(report_path)
-
-
 def main(argv=None):
+    """Recognize one decoded frame once, then export its result and previews."""
     parser = build_parser()
     args = parse_arguments(parser, argv)
     cv2.setNumThreads(args.threads)
@@ -147,13 +105,23 @@ def main(argv=None):
     if image is None:
         parser.error(f"Cannot read image: {args.image}")
     layout = json.loads(args.layout.read_text())
-    reader = BrailleReader(layout, args.mode)
-    result, crops, timings = measure_reader(reader, image, args.warmup, args.runs)
-    report = build_report(args, layout, result, timings)
-    report_path = write_artifacts(
-        args.output_dir, args.image, image, result, crops, report
-    )
-    print_summary(result, report["latency_ms"], report_path)
+    result, crops = BrailleReader(layout, mode=args.mode).read(image)
+    report = {
+        "image": str(args.image.resolve()),
+        "layout": layout,
+        "cpu_threads": args.threads,
+        "timing_boundary": (
+            "One decoded image through rectification, stud detection, exact lookup, "
+            "row assembly and JSON serialization; excludes initialization and file I/O"
+        ),
+        **result,
+    }
+    report_path = write_artifacts(args.output_dir, args.image, image, result, crops, report)
+    for row in result["rows"]:
+        print(f"{row['row_id']}: {row['text']}")
+    print(f"Image-to-result: {result['timing_ms']['image_to_result']:.3f} ms; {len(result['cells'])} cells")
+    print(report_path)
+    return report
 
 
 if __name__ == "__main__":

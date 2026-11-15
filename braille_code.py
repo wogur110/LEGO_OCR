@@ -1,7 +1,8 @@
 """English six-dot identities with the project's explicit LEGO A alias.
 
-This is an alphabet/number/basic-punctuation subset, not a full UEB translator.
-Standard tables remain intact; the project additionally reads dots 1+6 as A.
+This is an alphabet/number/period subset, not a full UEB translator.
+Alphabet and digit identities are standard; the project also reads dots 1+6 as A.
+The period is the only supported punctuation mark.
 Dot order is column-major: left 1,2,3; right 4,5,6, viewed from the reading side.
 Source: Unified English Braille Manual, NZ edition, lessons 1-3 and 24.
 https://www.brailleauthority.org/ueb/NZ%20UEB%20Manual%202011.pdf
@@ -42,18 +43,11 @@ DIGIT_DOTS = {
     for digit, letter in zip("1234567890", "ABCDEFGHIJ", strict=True)
 }
 INDICATOR_DOTS = {"number": (3, 4, 5, 6), "capital": (6,), "grade1": (5, 6)}
-PUNCTUATION_DOTS = {
-    ".": (2, 5, 6),
-    "?": (2, 3, 6),
-    "!": (2, 3, 5),
-    "'": (3,),
-    ",": (2,),
-    "-": (3, 6),
-}
+PUNCTUATION_DOTS = {".": (2, 5, 6)}
 INDICATOR_SYMBOLS = {"number": "#", "capital": "<CAP>", "grade1": "<GRADE1>"}
 # User-selected LEGO convention, not standard English Braille or digit 1.
 PROJECT_LETTER_ALIASES = {"A": (1, 6)}
-DECODER_ID = "lego_english_a16_punctuation_v2"
+DECODER_ID = "lego_english_a16_period_v3"
 
 
 def dots_to_mask(dots):
@@ -109,11 +103,11 @@ def decode_sequence(masks, mode="letters"):
     """Return visible tokens and text; None preserves an unread cell as '?'.
 
     letters: alphabet identities; numbers: explicitly selected digit identities.
-    auto: a number indicator starts numeric context; period/comma retain it,
-    other supported punctuation, blank or grade-1 end it.
-    Basic punctuation is supported; contractions and full UEB capitalization
-    are outside this prototype. Letters display uppercase. A recognized question
-    mark has reason='punctuation'; unread/unsupported cells remain incomplete.
+    auto: a number indicator starts numeric context and a period retains it.
+    Blank, capital/grade-1 indicators and unread/unsupported cells end it.
+    The period is the only punctuation supported; contractions and full UEB
+    capitalization are outside this prototype. Letters display uppercase.
+    '?' is an unread/unsupported placeholder, never recognized punctuation.
     The custom A16 alias is a letter only; standard digit 1 still uses dot 1.
     """
     if mode not in {"letters", "numbers", "auto"}:
@@ -147,14 +141,16 @@ def decode_sequence(masks, mode="letters"):
         elif cell["punctuation_candidate"] is not None:
             value = cell["punctuation_candidate"]
             reason = "decimal_point" if numeric and value == "." else "punctuation"
-            if mode == "auto" and value not in {".", ","}:
-                numeric = False
         elif numeric and cell["number_candidate"] is not None:
             value, reason = cell["number_candidate"], "numeric_context"
         elif mode != "numbers" and cell["letter_candidate"] is not None:
             value = cell["letter_candidate"]
             reason = "project_alias" if cell["mapping_source"] == "project_alias" else "alphabet_identity"
             numeric = False
+        else:
+            # An unsupported cell may interrupt a number. Never carry inferred
+            # numeric context through it; explicitly selected number mode stays.
+            numeric = mode == "numbers"
         tokens.append(
             {
                 "value": value,
@@ -174,7 +170,7 @@ def dictionary_document():
     return {
         "language": "English Braille with project-specific LEGO alias",
         "decoder_id": DECODER_ID,
-        "scope": "Alphabet, numbers, basic punctuation and indicators; not a full UEB translator",
+        "scope": "Alphabet, numbers, period and indicators; not a full UEB translator",
         "dot_numbering": [[1, 4], [2, 5], [3, 6]],
         "bit_order": "bit 0 = dot 1, ..., bit 5 = dot 6",
         "letters": LETTER_DOTS,
@@ -182,10 +178,6 @@ def dictionary_document():
         "indicators": INDICATOR_DOTS,
         "indicator_display_symbols": INDICATOR_SYMBOLS,
         "punctuation": PUNCTUATION_DOTS,
-        "lego_png_last_row": [
-            {"symbol": symbol, "dots": PUNCTUATION_DOTS[symbol], "kind": "punctuation"}
-            for symbol in ("?", "!", "'", ",", "-")
-        ] + [{"symbol": "#", "dots": INDICATOR_DOTS["number"], "kind": "indicator"}],
         "project_letter_aliases": PROJECT_LETTER_ALIASES,
         "project_alias_rule": "Dots 1+6 additionally decode as A by user request; standard A (dot 1) remains supported. This alias does not change digit 1.",
         "number_rule": "A-J share their patterns with 1-9,0; a number indicator or explicitly selected numeric mode is required to disambiguate",

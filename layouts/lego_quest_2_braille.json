@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "image_size": [
+    735,
+    310
+  ],
+  "description": "Manually traced full top-face corners, including the printed-label quarter and excluding visible vertical sidewalls. Geometry only; no expected letters or masks. Corners estimated from this low-resolution image, approximately +/- 2 source pixels.",
+  "cells": [
+    {
+      "row_id": "row1",
+      "slot_index": 0,
+      "quad": [
+        [
+          194,
+          156
+        ],
+        [
+          240,
+          149
+        ],
+        [
+          255,
+          245
+        ],
+        [
+          204,
+          253
+        ]
+      ]
+    },
+    {
+      "row_id": "row1",
+      "slot_index": 1,
+      "quad": [
+        [
+          279,
+          143
+        ],
+        [
+          325,
+          139
+        ],
+        [
+          340,
+          234
+        ],
+        [
+          291,
+          242
+        ]
+      ]
+    },
+    {
+      "row_id": "row1",
+      "slot_index": 2,
+      "quad": [
+        [
+          365,
+          144
+        ],
+        [
+          411,
+          143
+        ],
+        [
+          423,
+          239
+        ],
+        [
+          373,
+          240
+        ]
+      ]
+    },
+    {
+      "row_id": "row1",
+      "slot_index": 3,
+      "quad": [
+        [
+          446,
+          143
+        ],
+        [
+          493,
+          145
+        ],
+        [
+          500,
+          240
+        ],
+        [
+          450,
+          236
+        ]
+      ]
+    },
+    {
+      "row_id": "row1",
+      "slot_index": 4,
+      "quad": [
+        [
+          542,
+          156
+        ],
+        [
+          589,
+          164
+        ],
+        [
+          596,
+          260
+        ],
+        [
+          545,
+          251
+        ]
+      ]
+    }
+  ]
+}
